@@ -10,13 +10,15 @@ import {
   orderBy,
   serverTimestamp,
   getDocs,
+  doc,
+  getDoc,
 } from "firebase/firestore";
 import { db } from "../services/firebase";
 import { signOut } from "firebase/auth";
 
 function Chat() {
   const [user, setUser] = useState(null);
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState([]); // will hold only friends
   const [selectedUser, setSelectedUser] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState("");
@@ -24,10 +26,10 @@ function Chat() {
   const unsubscribeRef = useRef(null);
 
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((firebaseUser) => {
+    const unsubscribe = auth.onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
         setUser(firebaseUser);
-        fetchUsers(firebaseUser.uid);
+        await fetchFriends(firebaseUser.uid);
       } else {
         window.location.href = "/";
       }
@@ -35,13 +37,36 @@ function Chat() {
     return () => unsubscribe();
   }, []);
 
-  const fetchUsers = async (currentUserId) => {
-    const q = query(collection(db, "users"));
-    const snapshot = await getDocs(q);
-    const usersList = snapshot.docs
-      .map((doc) => ({ ...doc.data(), id: doc.id }))
-      .filter((u) => u.uid !== currentUserId);
-    setUsers(usersList);
+  const fetchFriends = async (currentUserId) => {
+    try {
+      // Get current user's document
+      const userDocRef = doc(db, "users", currentUserId);
+      const userDocSnap = await getDoc(userDocRef);
+
+      if (!userDocSnap.exists()) {
+        console.error("User document not found");
+        setUsers([]);
+        return;
+      }
+
+      const userData = userDocSnap.data();
+      const friendIds = userData.friends || [];
+
+      if (friendIds.length === 0) {
+        setUsers([]); // no friends
+        return;
+      }
+
+      // Fetch all users and filter by friendIds
+      const usersSnapshot = await getDocs(collection(db, "users"));
+      const friendsList = usersSnapshot.docs
+        .map((doc) => ({ ...doc.data(), id: doc.id }))
+        .filter((u) => friendIds.includes(u.uid));
+
+      setUsers(friendsList);
+    } catch (error) {
+      console.error("Error fetching friends:", error);
+    }
   };
 
   const getChatId = (uid1, uid2) => {
@@ -112,7 +137,7 @@ function Chat() {
         style={{ width: "280px" }}
       >
         <div className="d-flex justify-content-between align-items-center p-3 border-bottom">
-          <h5 className="mb-0">Users</h5>
+          <h5 className="mb-0">Friends</h5>
           <button
             className="btn btn-outline-danger btn-sm"
             onClick={handleLogout}
@@ -121,6 +146,9 @@ function Chat() {
           </button>
         </div>
         <ul className="list-group">
+          {users.length === 0 && (
+            <li className="list-group-item text-muted">No friends yet</li>
+          )}
           {users.map((u) => (
             <li
               key={u.uid}
@@ -147,7 +175,7 @@ function Chat() {
           <h5 className="mb-0">
             {selectedUser
               ? `Chatting with ${selectedUser.email}`
-              : "Select a user to start chatting"}
+              : "Select a friend to start chatting"}
           </h5>
         </header>
 
@@ -157,7 +185,7 @@ function Chat() {
         >
           {!selectedUser ? (
             <div className="d-flex justify-content-center align-items-center text-muted flex-grow-1">
-              No user selected
+              No friend selected
             </div>
           ) : (
             <div className="d-flex flex-column gap-2">

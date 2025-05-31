@@ -5,10 +5,18 @@ import { auth, db } from "../services/firebase";
 import { doc, setDoc } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 
-function Register() {
+function generateUniqueId(length = 6) {
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let result = "";
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [nickname, setNickname] = useState("");
   const navigate = useNavigate();
 
   const handleRegister = async (e) => {
@@ -20,63 +28,41 @@ function Register() {
         password
       );
       const user = userCredential.user;
-
-      const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(
-        nickname
-      )}&background=random`;
+      const uniqueId = generateUniqueId();
 
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         email: user.email,
-        nickname,
-        avatar: avatarUrl,
+        uniqueId,
+        friends: [], // list of friend UIDs
       });
 
       navigate("/chat");
     } catch (error) {
-      console.error("Registration failed:", error);
       alert(error.message);
     }
   };
 
   return (
-    <div className="min-vh-100 d-flex justify-content-center align-items-center bg-light">
-      <form
-        onSubmit={handleRegister}
-        className="bg-white p-4 rounded shadow-sm w-100"
-        style={{ maxWidth: "400px" }}
-      >
-        <h2 className="mb-4 text-center">Register</h2>
-        <input
-          type="text"
-          placeholder="Nickname"
-          className="form-control mb-3"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          required
-        />
-        <input
-          type="email"
-          placeholder="Email"
-          className="form-control mb-3"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Password"
-          className="form-control mb-4"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button type="submit" className="btn btn-primary w-100">
-          Register
-        </button>
-      </form>
-    </div>
+    <form onSubmit={handleRegister} style={{ maxWidth: 300, margin: "auto" }}>
+      <h2>Register</h2>
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+      <br />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        required
+      />
+      <br />
+      <button type="submit">Register</button>
+    </form>
   );
 }
-
-export default Register;
